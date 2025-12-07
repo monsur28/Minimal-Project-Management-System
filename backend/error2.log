@@ -1,0 +1,4 @@
+src/controllers/auth.controller.ts(20,26): error TS1005: ')' expected.
+src/controllers/auth.controller.ts(20,53): error TS1005: ';' expected.
+src/controllers/auth.controller.ts(20,54): error TS1128: Declaration or statement expected.
+src/controllers/auth.controller.ts(28,7): error TS1128: Declaration or statement expected.
