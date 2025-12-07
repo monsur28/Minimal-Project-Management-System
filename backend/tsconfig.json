@@ -12,10 +12,15 @@
     "typeRoots": [
       "./src/types",
       "./node_modules/@types"
+    ],
+    "types": [
+      "node",
+      "express"
     ]
   },
   "include": [
-    "src/**/*"
+    "src/**/*.ts",
+    "src/**/*.d.ts"
   ],
   "exclude": [
     "node_modules"

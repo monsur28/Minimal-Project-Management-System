@@ -1,9 +1,16 @@
-import { IUser } from '../models/user.model';
-
 declare global {
     namespace Express {
+        interface UserPayload {
+            _id: string;
+            name?: string;
+            email?: string;
+            role?: "admin" | "manager" | "member" | string;
+        }
+
         interface Request {
-            user?: IUser;
+            user?: UserPayload;
         }
     }
 }
+
+export { };
