@@ -27,7 +27,7 @@ export default function TaskDetailPage() {
             // In task.routes.ts: router.route('/:id').put(...).delete(...)
             // We need GET /:id there too.
             // Let's assume we fix backend to allow GET /api/tasks/:id
-            const { data } = await api.get(`/tasks/${id}`);
+            // Duplicate fetch removed; using earlier request
             return data;
         },
     });
