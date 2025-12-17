@@ -33,12 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (token) {
                 try {
-                    // Set token in headers (assuming axios interceptor or global default needs to be set, 
-                    // though api instance usually handles this if we set it. 
-                    // But here we might not have set it yet if page refreshed.
-                    // For now, let's assume the api interceptor reads from localStorage or we set it manually.
-                    // Actually, let's just use the token in the request or ensure api lib handles it.
-                    // If api lib doesn't auto-read localStorage, we might need to set default header here.
                     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
                     const { data } = await api.get('/users/profile');

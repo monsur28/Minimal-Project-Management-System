@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Task {
@@ -48,6 +48,16 @@ export default function TaskDetailsPage() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const [newComment, setNewComment] = useState('');
+    const [elapsedTime, setElapsedTime] = useState(0);
+
+    const { data: timerStatus, refetch: refetchTimerStatus } = useQuery({
+        queryKey: ['timerStatus', taskId],
+        queryFn: async () => {
+            const { data } = await api.get(`/tasks/${taskId}/timer/status`);
+            return data;
+        },
+        refetchInterval: 5000,
+    });
 
     // Queries
     const { data: task, isLoading: loadingTask } = useQuery<Task>({
@@ -85,6 +95,47 @@ export default function TaskDetailsPage() {
             commentMutation.mutate(newComment);
         }
     };
+
+    useEffect(() => {
+        if (timerStatus?.running && timerStatus?.startTime) {
+            const startTime = new Date(timerStatus.startTime).getTime();
+            const updateTimer = () => {
+                const now = new Date().getTime();
+                setElapsedTime(Math.floor((now - startTime) / 1000));
+            };
+            updateTimer();
+            const interval = setInterval(updateTimer, 1000);
+            return () => clearInterval(interval);
+        } else {
+            setElapsedTime(0);
+        }
+    }, [timerStatus]);
+
+    const formatTime = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${h}h ${m}m ${s}s`;
+    };
+
+    const startTimerMutation = useMutation({
+        mutationFn: async () => {
+            await api.post(`/tasks/${taskId}/timer/start`);
+        },
+        onSuccess: () => {
+            refetchTimerStatus();
+        },
+    });
+
+    const stopTimerMutation = useMutation({
+        mutationFn: async () => {
+            await api.post(`/tasks/${taskId}/timer/stop`);
+        },
+        onSuccess: () => {
+            refetchTimerStatus();
+            queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+        },
+    });
 
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
@@ -125,6 +176,30 @@ export default function TaskDetailsPage() {
                         <p className="text-slate-200 leading-relaxed whitespace-pre-wrap">
                             {task.description || "No description provided."}
                         </p>
+                    </div>
+
+                    {/*Time */}
+
+                    <div className="bg-slate-900/50 p-6 rounded-xl border border-white/10 flex items-center justify-between">
+                        <div>
+                            <h3 className="text-sm font-medium text-slate-400 mb-1">Task Timer</h3>
+                            <div className="text-2xl font-mono font-bold text-white">
+                                {timerStatus?.running ? formatTime(elapsedTime) : '0h 0m 0s'}
+                            </div>
+                        </div>
+                        {timerStatus?.running ? (
+                            <Button variant="destructive" onClick={() => stopTimerMutation.mutate()} disabled={stopTimerMutation.isPending}>
+                                Stop Timer
+                            </Button>
+                        ) : (
+                            <Button onClick={() => startTimerMutation.mutate()} disabled={startTimerMutation.isPending} className="bg-indigo-600 hover:bg-indigo-700">
+                                Start Timer
+                            </Button>
+                        )}
+                    </div>
+
+                    <div>
+                        <p className="text-sm text-slate-400">Total Logged Time: <span className="text-white font-medium">{task.timeLogged ? task.timeLogged.toFixed(2) : 0} hours</span></p>
                     </div>
 
                     {/* Comments */}

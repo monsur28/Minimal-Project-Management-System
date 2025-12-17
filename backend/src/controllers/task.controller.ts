@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Task from '../models/task.model';
 import Project from '../models/project.model';
+import TimeLog from '../models/timelog.model';
 import { z } from 'zod';
 import { logActivity } from './activity.controller';
 
@@ -13,7 +14,20 @@ export const getTasks = async (req: Request, res: Response) => {
         .populate('sprint', 'name')
         .sort({ createdAt: -1 });
 
-    res.json(tasks);
+    const activeLog = await TimeLog.findOne({
+        user: req.user!._id,
+        endTime: { $exists: false }
+    });
+
+    const tasksWithTimer = tasks.map(task => {
+        const t = task.toObject();
+        return {
+            ...t,
+            isTimerRunning: activeLog ? activeLog.task.toString() === task._id.toString() : false
+        };
+    });
+
+    res.json(tasksWithTimer);
 };
 
 // @desc    Get single task

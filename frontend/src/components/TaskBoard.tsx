@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useParams, useRouter } from 'next/navigation';
-import { Calendar, Clock, Flag, AlertCircle, User as UserIcon } from 'lucide-react';
+import { Calendar, Clock, Flag, AlertCircle, User as UserIcon, Play, Square } from 'lucide-react';
 import {
     DndContext,
     closestCorners,
@@ -33,6 +33,8 @@ interface Task {
     sprint?: { name: string };
     assignees: { name: string }[];
     dueDate?: string;
+    timeLogged?: number;
+    isTimerRunning?: boolean;
 }
 
 const columns = [
@@ -49,7 +51,12 @@ const priorityConfig = {
 };
 
 // Sortable Task Card Component
-function SortableTaskCard({ task, onClick }: { task: Task, onClick: () => void }) {
+function SortableTaskCard({ task, onClick, onStartTimer, onStopTimer }: {
+    task: Task,
+    onClick: () => void,
+    onStartTimer: (e: React.MouseEvent, taskId: string) => void,
+    onStopTimer: (e: React.MouseEvent, taskId: string) => void,
+}) {
     const {
         attributes,
         listeners,
@@ -75,6 +82,16 @@ function SortableTaskCard({ task, onClick }: { task: Task, onClick: () => void }
                         <CardTitle className="text-sm font-medium text-slate-200 group-hover:text-indigo-300 transition-colors leading-snug line-clamp-2">
                             {task.title}
                         </CardTitle>
+                        <button
+                            onClick={(e) => task.isTimerRunning ? onStopTimer(e, task._id) : onStartTimer(e, task._id)}
+                            className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center border transition-colors ${task.isTimerRunning
+                                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 opacity-0 group-hover:opacity-100'
+                                }`}
+                            title={task.isTimerRunning ? "Stop Timer" : "Start Timer"}
+                        >
+                            {task.isTimerRunning ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+                        </button>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
@@ -122,16 +139,28 @@ function SortableTaskCard({ task, onClick }: { task: Task, onClick: () => void }
                                     {task.estimate}h
                                 </div>
                             )}
+                            {task.timeLogged && task.timeLogged > 0 && (
+                                <div className="flex items-center gap-1 text-slate-500 text-[10px] whitespace-nowrap bg-white/5 px-1.5 py-0.5 rounded" title="Time Logged">
+                                    <Clock className="w-3 h-3 text-indigo-400" />
+                                    {task.timeLogged.toFixed(1)}h
+                                </div>
+                            )}
                         </div>
                     </div>
                 </CardContent>
             </Card>
-        </div>
+        </div >
     );
 }
 
 // Droppable Column Component
-function TaskColumn({ column, tasks, onTaskClick }: { column: typeof columns[0], tasks: Task[], onTaskClick: (id: string) => void }) {
+function TaskColumn({ column, tasks, onTaskClick, onStartTimer, onStopTimer }: {
+    column: typeof columns[0],
+    tasks: Task[],
+    onTaskClick: (id: string) => void,
+    onStartTimer: (e: React.MouseEvent, taskId: string) => void,
+    onStopTimer: (e: React.MouseEvent, taskId: string) => void,
+}) {
     const { setNodeRef } = useDroppable({
         id: column.id,
     });
@@ -157,7 +186,13 @@ function TaskColumn({ column, tasks, onTaskClick }: { column: typeof columns[0],
                     className="flex flex-col gap-3 h-full min-h-[150px] bg-slate-900/10 rounded-xl border border-dashed border-white/5 p-2"
                 >
                     {columnTasks.map((task) => (
-                        <SortableTaskCard key={task._id} task={task} onClick={() => onTaskClick(task._id)} />
+                        <SortableTaskCard
+                            key={task._id}
+                            task={task}
+                            onClick={() => onTaskClick(task._id)}
+                            onStartTimer={onStartTimer}
+                            onStopTimer={onStopTimer}
+                        />
                     ))}
                 </div>
             </SortableContext>
@@ -187,6 +222,34 @@ export default function TaskBoard() {
             queryClient.invalidateQueries({ queryKey: ['tasks', id] });
         },
     });
+
+    const startTimerMutation = useMutation({
+        mutationFn: async (taskId: string) => {
+            await api.post(`/tasks/${taskId}/timer/start`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+        },
+    });
+
+    const stopTimerMutation = useMutation({
+        mutationFn: async (taskId: string) => {
+            await api.post(`/tasks/${taskId}/timer/stop`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+        },
+    });
+
+    const handleStartTimer = (e: React.MouseEvent, taskId: string) => {
+        e.stopPropagation();
+        startTimerMutation.mutate(taskId);
+    };
+
+    const handleStopTimer = (e: React.MouseEvent, taskId: string) => {
+        e.stopPropagation();
+        stopTimerMutation.mutate(taskId);
+    };
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -244,6 +307,8 @@ export default function TaskBoard() {
                         column={column}
                         tasks={tasks || []}
                         onTaskClick={handleTaskClick}
+                        onStartTimer={handleStartTimer}
+                        onStopTimer={handleStopTimer}
                     />
                 ))}
             </div>

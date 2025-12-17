@@ -9,13 +9,74 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { Calendar, ChevronLeft, Flag, Clock, User, CheckCircle2, Circle, Paperclip } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import { TaskComments } from '@/components/tasks/TaskComments';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function EditTaskPage() {
     const { id, taskId } = useParams();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [elapsedTime, setElapsedTime] = useState(0);
+    const queryClient = useQueryClient();
+
+    const { data: timerStatus, refetch: refetchTimerStatus } = useQuery({
+        queryKey: ['timerStatus', taskId],
+        queryFn: async () => {
+            const { data } = await api.get(`/tasks/${taskId}/timer/status`);
+            return data;
+        },
+        refetchInterval: 5000,
+    });
+
+    const { data: timeBreakdown } = useQuery({
+        queryKey: ['timeBreakdown', taskId],
+        queryFn: async () => {
+            const { data } = await api.get(`/tasks/${taskId}/timer/breakdown`);
+            return data;
+        },
+        enabled: !!taskId,
+    });
+
+    useEffect(() => {
+        if (timerStatus?.running && timerStatus?.startTime) {
+            const startTime = new Date(timerStatus.startTime).getTime();
+            const updateTimer = () => {
+                const now = new Date().getTime();
+                setElapsedTime(Math.floor((now - startTime) / 1000));
+            };
+            updateTimer();
+            const interval = setInterval(updateTimer, 1000);
+            return () => clearInterval(interval);
+        } else {
+            setElapsedTime(0);
+        }
+    }, [timerStatus]);
+
+    const formatTime = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${h}h ${m}m ${s}s`;
+    };
+
+    const startTimerMutation = useMutation({
+        mutationFn: async () => {
+            await api.post(`/tasks/${taskId}/timer/start`);
+        },
+        onSuccess: () => {
+            refetchTimerStatus();
+        },
+    });
+
+    const stopTimerMutation = useMutation({
+        mutationFn: async () => {
+            await api.post(`/tasks/${taskId}/timer/stop`);
+        },
+        onSuccess: () => {
+            refetchTimerStatus();
+            queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+        },
+    });
 
     const [formData, setFormData] = useState({
         title: '',
@@ -206,6 +267,45 @@ export default function EditTaskPage() {
                                             min="0"
                                         />
                                     </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                                            <Clock className="w-4 h-4 text-slate-400" />
+                                            Time Logged (Hours)
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            value={task?.timeLogged ? task.timeLogged.toFixed(2) : 0}
+                                            disabled
+                                            className="bg-black/20 border-white/10 text-slate-400"
+                                        />
+                                    </div>
+
+
+
+                                    {/* Member Time Breakdown */}
+                                    {timeBreakdown && timeBreakdown.length > 0 && (
+                                        <div className="space-y-2 col-span-2 mt-2">
+                                            <div className="bg-slate-900/30 p-3 rounded-lg border border-white/5">
+                                                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Member Contributions</h4>
+                                                <div className="space-y-1.5">
+                                                    {timeBreakdown.map((log: any) => (
+                                                        <div key={log._id} className="flex justify-between items-center text-sm">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-6 h-6 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-medium">
+                                                                    {log.user?.name?.charAt(0).toUpperCase() || '?'}
+                                                                </div>
+                                                                <span className="text-slate-300">{log.user?.name || 'Unknown User'}</span>
+                                                            </div>
+                                                            <span className="font-mono text-slate-400">
+                                                                {(log.totalSeconds / 3600).toFixed(2)}h
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-slate-300 flex items-center gap-2">

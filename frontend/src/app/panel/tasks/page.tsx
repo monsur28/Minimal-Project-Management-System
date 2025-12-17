@@ -58,6 +58,7 @@ export default function MemberTasksPage() {
         return matchesFilter && matchesSearch;
     });
 
+
     if (loading || !user) {
         return (
             <div className="flex h-full items-center justify-center text-slate-400">
